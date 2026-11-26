@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Raw Olist data, all VARCHAR, append-only, one batch_id per load.
+    schema: bronze
+    tables:
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: order_reviews
+      - name: customers
+      - name: products
+      - name: sellers
+      - name: geolocation
+      - name: product_category_translation

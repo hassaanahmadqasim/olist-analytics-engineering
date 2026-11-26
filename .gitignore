@@ -11,3 +11,4 @@ dbt_project/dbt_packages/
 *.log.vscode/
 .vscode/
 data/batches/
+dbt_project/.user.yml

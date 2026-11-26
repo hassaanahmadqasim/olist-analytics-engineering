@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: stg_orders
+    description: >
+      One row per order_id. Latest batch wins (late-arriving updates resolved).
+      Rejected rows are excluded (see quarantine). Timestamps typed.
+      is_in_scope marks orders inside the Jan 2017 - Aug 2018 window.
+      is_delivery_timestamp_missing marks delivered orders with no delivery timestamp.
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests: [not_null]
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [created, approved, invoiced, processing, shipped, delivered, unavailable, canceled]
+      - name: purchased_at
+        data_tests: [not_null]
+
+  - name: stg_order_items
+    description: One row per (order_id, order_item_id). Negative or invalid amounts rejected.
+    columns:
+      - name: order_item_key
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: price
+        data_tests: [not_null]
+
+  - name: stg_order_payments
+    description: One row per (order_id, payment_sequential). Negative or invalid amounts rejected.
+    columns:
+      - name: payment_key
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: payment_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [credit_card, boleto, voucher, debit_card, not_defined]
+      - name: payment_value
+        data_tests: [not_null]
+
+  - name: stg_order_reviews
+    description: >
+      One row per (review_id, order_id). review_id repeats across orders in raw Olist,
+      and some orders have several reviews. One review per order is picked in int_.
+    columns:
+      - name: review_key
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: review_score
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5]
+                quote: false

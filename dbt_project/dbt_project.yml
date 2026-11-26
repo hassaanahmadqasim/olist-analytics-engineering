@@ -1,0 +1,23 @@
+name: olist
+version: "1.0.0"
+config-version: 2
+profile: olist
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # Olist has sparse months at both ends. Gold keeps only this window (see is_in_scope).
+  start_date: "2017-01-01"
+  end_date_exclusive: "2018-09-01"
+  valid_order_statuses:
+    [created, approved, invoiced, processing, shipped, delivered, unavailable, canceled]
+
+models:
+  olist:
+    staging:
+      +materialized: table
+      +schema: silver
