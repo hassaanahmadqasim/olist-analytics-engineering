@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
 RAW_DIR = ROOT / os.getenv("RAW_DATA_DIR", "data/raw")
+BATCH_DIR = ROOT / "data" / "batches"
 WAREHOUSE_PATH = ROOT / os.getenv("WAREHOUSE_PATH", "data/warehouse/olist.duckdb")
 
 # csv file -> bronze table

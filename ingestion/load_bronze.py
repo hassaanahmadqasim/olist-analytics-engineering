@@ -1,4 +1,5 @@
-"""Load Olist CSVs into DuckDB bronze: raw as-is (all VARCHAR) + metadata columns."""
+"""Load Olist CSVs into DuckDB bronze: raw as-is (all VARCHAR) + metadata columns.
+Append-only. A batch_id is loaded once; re-runs skip it."""
 import argparse
 import re
 from datetime import datetime, timezone
@@ -13,46 +14,53 @@ def sql_path(path: Path) -> str:
     return path.as_posix().replace("'", "''")
 
 
+def scalar(con, sql: str, params=None):
+    return con.execute(sql, params or []).fetchall()[0][0]
+
+
 def table_exists(con, table: str) -> bool:
-    return con.execute(
+    return scalar(
+        con,
         "SELECT count(*) FROM information_schema.tables "
         "WHERE table_schema = 'bronze' AND table_name = ?",
         [table],
-    ).fetchone()[0] > 0
+    ) > 0
 
 
-def load_batch(con, source_dir: Path, batch_id: str) -> None:
+def load_batch(con, source_dir: Path, batch_id: str, verbose: bool = True) -> dict:
     ingested_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")  # UTC
+    loaded = {}
     for file_name, table in SOURCES.items():
         path = source_dir / file_name
         if not path.exists():
-            raise FileNotFoundError(path)
+            continue  # batches only contain the tables that changed
 
         exists = table_exists(con, table)
-        if exists:
-            already = con.execute(
-                f"SELECT count(*) FROM bronze.{table} WHERE batch_id = ?", [batch_id]
-            ).fetchone()[0]
-            if already:
+        if exists and scalar(
+            con, f"SELECT count(*) FROM bronze.{table} WHERE batch_id = ?", [batch_id]
+        ):
+            if verbose:
                 print(f"SKIP  {table}: batch {batch_id} already loaded")
-                continue
+            continue
 
         select = f"""
             SELECT *,
                    TIMESTAMP '{ingested_at}' AS ingested_at,
                    '{file_name}' AS source_name,
                    '{batch_id}' AS batch_id
-            FROM read_csv('{sql_path(path)}', header = true, all_varchar = true)
+            FROM read_csv('{sql_path(path)}', header = true, all_varchar = true, quote = '"', escape = '"')
         """
         if exists:
             con.execute(f"INSERT INTO bronze.{table} {select}")
         else:
             con.execute(f"CREATE TABLE bronze.{table} AS {select}")
 
-        n = con.execute(
-            f"SELECT count(*) FROM bronze.{table} WHERE batch_id = ?", [batch_id]
-        ).fetchone()[0]
-        print(f"OK    {table}: {n:,} rows")
+        loaded[table] = scalar(
+            con, f"SELECT count(*) FROM bronze.{table} WHERE batch_id = ?", [batch_id]
+        )
+        if verbose:
+            print(f"OK    {table}: {loaded[table]:,} rows")
+    return loaded
 
 
 def main() -> None:
